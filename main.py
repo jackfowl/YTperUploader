@@ -3,6 +3,7 @@ import youtube as yt
 import Tkinter as tk
 import ttk
 import webbrowser
+import math
 
 YT_KEY = 'AI39si5Hoj2If4u1UHi0FuPGJVLEhEvpku1Aox01MSs23PHQObHuLrkhS7qsdJrIDS_cfkT4ZrhOzDbbh_a6377FP8b1Ykcu3A'
 
@@ -18,23 +19,34 @@ class VideoControl(tk.Frame):
     
     def __init__(self, video, master=None):
         tk.Frame.__init__(self, master)
-        self.grid(sticky=tk.W)
+        #self.grid(sticky=tk.W)
         self.see = tk.Button(self, text=video.title)
         self.see.grid(row=0,column=0,sticky=tk.W)
 
 class ChannelTab(ttk.Frame):
-    text, videos, controls, pages = '', [], [], 1
+    text, videos, controls, actualPage = '', [], [], 1
     
     def __init__(self, channel, videos, master=None):
         ttk.Frame.__init__(self, master)
         self.text = channel
-        self.videos = videos
+        self.setVideos(videos)
         self.grid(row=0,column=0,sticky=tk.W)
-        self.draw(2)
+        self.previous=tk.Button(self, text='<', command=self.draw(self.actualpage - 1))
+        self.previous.grid(row=1, column=1, stick=tk.W)
+        self.next=tk.Button(self, text='<', command=self.draw(self.actualpage - 1))
+        self.next.grid(row=1, column=1, stick=tk.W)
+
+    def setVideos(self, videos):
+        self.videos = videos
+        for video in self.videos:
+            self.controls.append(VideoControl(video))
+        self.draw()
 
     def draw(self, page=1):
-        for video in self.videos[((page-1)*25):page*25]:
-            self.controls.append(VideoControl(video))
+        if page in range(1,int(math.ceil(len(self.videos) / 25.0))):
+            for control in self.controls[((page-1)*25):(page*25)]:
+                control.grid(sticky=tk.W)
+            self.actualPage = page
 
 
 class Application(tk.Frame):
@@ -58,7 +70,6 @@ class Application(tk.Frame):
         self.tabs.grid(row=1, column=0, stick=tk.W)
         self.frames = []
         for key in lista.keys():
-            print(key)
             self.frames.append(ChannelTab(key, lista[key], self.tabs))
             self.tabs.add(self.frames[-1], text=key)
 
