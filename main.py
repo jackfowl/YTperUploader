@@ -1,7 +1,10 @@
-import gdata.youtube
-import gdata.youtube.service
-
 import database as db
+import youtube as yt
+import Tkinter as tk
+import ttk
+import webbrowser
+
+YT_KEY = 'AI39si5Hoj2If4u1UHi0FuPGJVLEhEvpku1Aox01MSs23PHQObHuLrkhS7qsdJrIDS_cfkT4ZrhOzDbbh_a6377FP8b1Ykcu3A'
 
 class VideoObject:
     title, date, url, viewed = '', '', '', False
@@ -11,56 +14,102 @@ class VideoObject:
         self.date = date
         self.url = url
 
-myKey = 'AI39si5Hoj2If4u1UHi0FuPGJVLEhEvpku1Aox01MSs23PHQObHuLrkhS7qsdJrIDS_cfkT4ZrhOzDbbh_a6377FP8b1Ykcu3A'
-lista = {}
-yt_service = gdata.youtube.service.YouTubeService()
-yt_service.ssl = True
+class VideoControl(tk.Frame):
+    
+    def __init__(self, video, master=None):
+        tk.Frame.__init__(self, master)
+        self.grid(sticky=tk.W)
+        self.see = tk.Button(self, text=video.title)
+        self.see.grid(row=0,column=0,sticky=tk.W)
 
-def GetUserUploads(username, index):
-    query = gdata.youtube.service.YouTubeVideoQuery()
-    query.author = username
-    query.orderby = 'published'
-    query.max_results = 1
-    query.time = 'all_time'
-    query.start_index = index
-    query.key = myKey
-    return yt_service.YouTubeQuery(query).entry
+class ChannelTab(ttk.Frame):
+    text, videos, controls, pages = '', [], [], 1
+    
+    def __init__(self, channel, videos, master=None):
+        ttk.Frame.__init__(self, master)
+        self.text = channel
+        self.videos = videos
+        self.grid(row=0,column=0,sticky=tk.W)
+        self.draw(2)
 
-def EntryToVideoObject(entry):
+    def draw(self, page=1):
+        for video in self.videos[((page-1)*25):page*25]:
+            self.controls.append(VideoControl(video))
+
+
+class Application(tk.Frame):
+    
+    def __init__(self, master=None):
+        tk.Frame.__init__(self, master)
+        self.grid(sticky=tk.N+tk.S+tk.E+tk.W)
+        self.createWidgets()
+        
+    def createWidgets(self):
+        top=self.winfo_toplevel()
+        #Adding channels panel
+        self.channel = tk.Entry(self)
+        self.channel.grid(row=0, column=0, stick=tk.W)
+        self.add = tk.Button(self, text='Add', command=self.addChannel)
+        self.add.grid(row=0, column=1, stick=tk.W)
+        self.quit = tk.Button(self, text='Close', command=top.destroy)
+        self.quit.grid(row=0, column=2, stick=tk.E)
+        #Show added channels panel
+        self.tabs = ttk.Notebook(self)
+        self.tabs.grid(row=1, column=0, stick=tk.W)
+        self.frames = []
+        for key in lista.keys():
+            print(key)
+            self.frames.append(ChannelTab(key, lista[key], self.tabs))
+            self.tabs.add(self.frames[-1], text=key)
+
+    def addChannel(self):
+        print(self.channel.get())
+        saveEntryResults(self.channel.get(), yt_service)
+        self.channel.delete(0, tk.END)
+
+#------------------------------------------------------------------------        
+
+def entryToVideoObject(entry):
     return VideoObject(entry.media.title.text,
                        entry.published.text,
                        entry.media.player.url)    
 
-def AddToList(channel, video):
+def addToList(channel, video):
+    result = True
     if lista.has_key(channel):
-        lista[channel].append(video)
+        result = videoExists(video, lista[channel])
+        if not result:
+            lista[channel].append(video)
     else:
         lista[channel] = [video]
-    db.SaveDB(lista)
    
-def VideoExists(url, videos):
-    result = false
+def videoExists(video, videos):
+    result = False
     for item in videos:
-        result = (video.url == url)
+        result = (video.url == item.url)
         if result: break
 
-def PrintEntryDetails(entry):
+def printEntryDetails(entry):
     print 'Video title: %s - %s - %s' % entry.media.title.text % entry.published.text % entry.media.player.url
 
-def SaveEntryResults(channel,index=1):
-    entries = GetUserUploads(channel, index)
+def saveEntryResults(channel, yt_service, index=1):
+    entries = yt_service.getUserUploads(channel, index)
     if entries:
-        more = False
         for entry in entries:
-            video = EntryToVideoObject(entry)
-            if not VideoExists(video.url):
-                AddToList(channel, video)           
+            if not addToList(channel, entryToVideoObject(entry)):
+                more = False
+                break
         if more:
-            VideoResults(index+50)
-       
-lista = db.LoadDB()
-for key in lista.keys():
-    SaveEntryResults(key)
+            saveEntryResults(channel, yt_service, index+50)
+    db.saveDB(lista)
+
+if __name__ == '__main__':
+    yt_service = yt.MyYouTubeService(YT_KEY)
     
-
-
+    lista = db.loadDB()
+    for key in lista.keys():
+        saveEntryResults(key, yt_service)
+    
+    app = Application()
+    app.master.title('YTperUploader')    
+    app.mainloop()
